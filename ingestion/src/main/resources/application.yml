@@ -1,0 +1,97 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: payment-ingestor
+
+  # H2 in-memory database — scoped to this service only
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # H2 console — useful during smoke test to inspect seeded accounts
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      # create-drop: schema created on startup, dropped on shutdown.
+      # Safe for H2 in-memory — no migration tool needed.
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        # acks=all: all in-sync replicas must confirm the write.
+        # Prevents data loss if the leader broker crashes mid-write.
+        acks: all
+
+        # enable.idempotence: assigns producer ID + sequence number per batch.
+        # Broker deduplicates retried batches — no duplicate payments on retry.
+        # Requires acks=all.
+        enable.idempotence: true
+
+        # linger.ms: wait up to 5ms to fill a batch before sending.
+        # Improves throughput at burst without meaningfully hurting p99 latency.
+        linger.ms: 5
+
+        # compression.type: snappy gives good compression with low CPU cost.
+        # Reduces broker disk I/O and network at high payment volumes.
+        compression.type: snappy
+
+        # retries: auto-retry up to 3 times on transient broker errors.
+        # Safe because idempotence is enabled — no duplicate messages.
+        retries: 3
+
+        # delivery.timeout.ms: total time budget for a send including retries.
+        # Must be larger than linger.ms + request.timeout.ms.
+        delivery.timeout.ms: 60000
+
+        # Type mapping: logical alias decouples ingestor package name
+        # from what the processor deserializes. Rename the package
+        # without breaking the consumer.
+        spring.json.type.mapping: paymentEvent:com.payments.ingestion.model.dto.PaymentEvent
+
+  # MVC configuration for path variable handling
+  mvc:
+    pathmatch:
+      use-suffix-pattern: false
+
+  # Allow encoded slashes in path variables (%2F in accountId)
+  tomcat:
+    allow-decoded-slash: true
+    # Additional configuration to handle slashes in path variables
+    reject-illegal-header: false
+    use-body-encoding-for-uri: true
+
+# Actuator — expose health and metrics endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+  endpoint:
+    health:
+      show-details: always
+
+# Logging — keep Kafka producer logs at INFO during normal run,
+# flip to DEBUG during smoke test to see per-message confirmations
+logging:
+  level:
+    root: INFO
+    com.payments.ingestion: DEBUG
+    org.springframework.kafka: INFO
+    org.apache.kafka.clients.producer: WARN
