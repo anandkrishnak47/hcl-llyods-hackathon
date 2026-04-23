@@ -1,9 +1,6 @@
 package com.payments.ingestion.service;
 
-import com.payments.ingestion.exception.AccountNotFoundException;
-import com.payments.ingestion.exception.AccountSuspendedException;
-import com.payments.ingestion.exception.DuplicatePaymentException;
-import com.payments.ingestion.exception.KafkaPublishException;
+import com.payments.ingestion.exception.*;
 import com.payments.ingestion.model.Account;
 import com.payments.ingestion.model.ProcessedPayment;
 import com.payments.ingestion.model.dto.AccountResponse;
@@ -45,6 +42,14 @@ public class PaymentService {
                     request.getPaymentId());
             throw new DuplicatePaymentException(
                     "Duplicate paymentId: " + request.getPaymentId());
+        }
+
+        if(request.getDebitAccountId().equals(request.getCreditAccountId())){
+            log.warn("Debit and credit accounts are the same: {}",
+                    request.getDebitAccountId());
+            throw new DebitAndCreditAccountSameException(
+                    "Debit and credit accounts cannot be the same: "
+                            + request.getDebitAccountId());
         }
 
         // ── Step 2: Validate debit account exists ─────────────────────────

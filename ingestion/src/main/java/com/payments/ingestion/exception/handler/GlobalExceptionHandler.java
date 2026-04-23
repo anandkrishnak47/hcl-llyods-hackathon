@@ -1,9 +1,6 @@
 package com.payments.ingestion.exception.handler;
 
-import com.payments.ingestion.exception.AccountNotFoundException;
-import com.payments.ingestion.exception.AccountSuspendedException;
-import com.payments.ingestion.exception.DuplicatePaymentException;
-import com.payments.ingestion.exception.KafkaPublishException;
+import com.payments.ingestion.exception.*;
 import com.payments.ingestion.model.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +56,22 @@ public class GlobalExceptionHandler {
                 .status(404)
                 .body(new ErrorResponse(
                         404,
+                        ex.getMessage(),
+                        req.getRequestURI()));
+    }
+
+    @ExceptionHandler(DebitAndCreditAccountSameException.class)
+    public ResponseEntity<ErrorResponse> handleDebitAndCreditAccountSame(
+            DebitAndCreditAccountSameException ex,
+            HttpServletRequest req) {
+
+        log.warn("Account cannot be same for Debit and Credit, accountId={} path={}",
+                ex.getAccountId(), req.getRequestURI());
+
+        return ResponseEntity
+                .status(409)
+                .body(new ErrorResponse(
+                        409,
                         ex.getMessage(),
                         req.getRequestURI()));
     }
